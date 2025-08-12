@@ -1,0 +1,214 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mahakal Bonus Scratch</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: linear-gradient(#1e1e1e, #111);
+      color: #fff;
+      text-align: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 350px;
+      margin: auto;
+      background: #222;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 15px gold;
+    }
+    .heading {
+      font-size: 24px;
+      margin-bottom: 15px;
+      color: gold;
+    }
+    #mobileInput {
+      padding: 10px;
+      width: 100%;
+      font-size: 16px;
+      margin-bottom: 15px;
+      border-radius: 10px;
+      border: none;
+    }
+    #scratchArea {
+      position: relative;
+      width: 100%;
+      height: 150px;
+      background: #ccc;
+      border-radius: 15px;
+      overflow: hidden;
+      margin: 15px 0;
+    }
+    #bonusText {
+      font-size: 18px;
+      color: darkgreen;
+      position: absolute;
+      width: 100%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 1;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 2;
+    }
+    .btn-wrap {
+      margin-top: 20px;
+    }
+    .btn {
+      background: gold;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      margin: 5px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .btn:hover {
+      background: orange;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="heading">🎁 MAHAKAL BONUS BOX</div>
+    <input type="tel" id="mobileInput" placeholder="Enter your mobile number" maxlength="10" />
+    <button class="btn" onclick="checkMobile()">SUBMIT</button>
+
+    <div id="scratchContainer" style="display:none">
+      <div id="scratchArea">
+        <div id="bonusText"></div>
+        <canvas id="scratchCanvas"></canvas>
+      </div>
+      <div class="btn-wrap" id="btnWrap" style="display:none">
+        <button class="btn" onclick="claimNow()">CLAIM NOW</button>
+        <button class="btn" onclick="referNow()">REFER & WIN MORE</button>
+      </div>
+    </div>
+  </div>
+
+  <audio id="revealSound" src="https://www.fesliyanstudios.com/play-mp3/387" preload="auto"></audio>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+  <script>
+    const prizes = [11, 21, 51];
+    let randomPrize = prizes[Math.floor(Math.random() * prizes.length)];
+    const bonusText = document.getElementById("bonusText");
+    const btnWrap = document.getElementById("btnWrap");
+    const sound = document.getElementById("revealSound");
+    let revealed = false;
+    let claimedNumbers = JSON.parse(localStorage.getItem("claimedNumbers") || '{}');
+
+    function checkMobile() {
+      const mobile = document.getElementById("mobileInput").value;
+      if (!/^\d{10}$/.test(mobile)) {
+        alert("Please enter a valid 10-digit mobile number");
+        return;
+      }
+      const now = new Date().getTime();
+      const lastClaim = claimedNumbers[mobile]?.timestamp || 0;
+      const hours24 = 24 * 60 * 60 * 1000;
+      if (now - lastClaim < hours24) {
+        const hoursLeft = Math.ceil((hours24 - (now - lastClaim)) / (60 * 60 * 1000));
+        alert(`You have already claimed your bonus! Try again in ${hoursLeft} hour(s).`);
+        return;
+      }
+      document.getElementById("scratchContainer").style.display = "block";
+      setupScratch(mobile);
+    }
+
+    function setupScratch(mobile) {
+      const canvas = document.getElementById("scratchCanvas");
+      const ctx = canvas.getContext("2d");
+      bonusText.innerHTML = `🎁 Scratch to reveal your bonus!`;
+
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+
+      ctx.fillStyle = "#aaa";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      let isDrawing = false;
+
+      canvas.addEventListener("mousedown", startDrawing);
+      canvas.addEventListener("mousemove", draw);
+      canvas.addEventListener("mouseup", stopDrawing);
+      canvas.addEventListener("touchstart", startDrawing);
+      canvas.addEventListener("touchmove", draw);
+      canvas.addEventListener("touchend", stopDrawing);
+
+      function getXY(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+        const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+        return { x, y };
+      }
+
+      function startDrawing(e) {
+        isDrawing = true;
+        draw(e);
+      }
+
+      function stopDrawing() {
+        isDrawing = false;
+        checkReveal();
+      }
+
+      function draw(e) {
+        if (!isDrawing || revealed) return;
+        e.preventDefault();
+        const { x, y } = getXY(e);
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.beginPath();
+        ctx.arc(x, y, 15, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function checkReveal() {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        let clearPixels = 0;
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          if (imageData.data[i + 3] === 0) clearPixels++;
+        }
+        const percent = clearPixels / (canvas.width * canvas.height) * 100;
+        if (percent > 30 && !revealed) {
+          revealPrize(mobile);
+        }
+      }
+
+      function revealPrize(mobile) {
+        revealed = true;
+        bonusText.innerHTML = `🎉 You won <br><span style='font-size:28px;color:darkgreen;'>${randomPrize} Points</span>`;
+        btnWrap.style.display = "block";
+        sound.play();
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+        claimedNumbers[mobile] = { bonus: randomPrize, timestamp: new Date().getTime() };
+        localStorage.setItem("claimedNumbers", JSON.stringify(claimedNumbers));
+        console.log(`User ${mobile} claimed ${randomPrize} points.`);
+      }
+    }
+
+    function claimNow() {
+      alert("Bonus claimed! Points will be added to your account.");
+    }
+
+    function referNow() {
+      const msg = encodeURIComponent("I just won a bonus on MAHAKAL! Try your luck now 🔥
+https://yourwebsite.com");
+      window.open(`https://wa.me/?text=${msg}`, "_blank");
+    }
+  </script>
+</body>
+</html>
